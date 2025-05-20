@@ -1,5 +1,10 @@
 %% PID Tuning with GA (Minimize Overshoot)
 
+global essvar
+global stimevar1
+global stimevar2
+global r timevar
+
 % 1. Define plant transfer function
 num = 7.84;
 den = [3, 5.04, 7.84];
@@ -9,6 +14,12 @@ Gp = tf(num, den);
 nVars   = 3;                % [Kp, Ki, Kd]
 lb      = [0,   0,   0];    % lower bounds
 ub      = [100, 100, 10];   % upper bounds
+
+%Constraint variables
+essvar = 0.05;
+stimevar1 = 1;
+stimevar2 = 1.25;
+rtimevar = 0.5;
 
 options = optimoptions('ga', ...
     'Display', 'iter', ...
@@ -98,10 +109,10 @@ function [c, ceq] = pidConstraints(x, Gp)
     [y, ~] = step(sys, 0:0.01:10);
     ess = abs(1 - y(end));  % steady-state error
 
-    c1 = ess - 0.05;               % ess ≤ 0.05
-    c2 = info.SettlingTime - 1.5;  % Ts ≤ 1.5
-    c3 = 1 - info.SettlingTime;    % Ts ≥ 1
-    c4 = 0.5 - info.RiseTime;      % Rt ≥ 0.5
+    c1 = ess - essvar;                   % ess ≤ 0.05
+    c2 = info.SettlingTime - stimevar2;  % Ts ≤ 1.5
+    c3 = stimevar1 - info.SettlingTime;  % Ts ≥ 1
+    c4 = rtimevar - info.RiseTime;       % Rt ≥ 0.5
     
     %Check if any response returns incorrent data
     if isempty(info) || any(isnan([info.SettlingTime, info.RiseTime]))
