@@ -1,4 +1,4 @@
-%% DC Motor PID Tuning with GA (Minimize Overshoot, RiseTime ≥ 0.5s)
+%% PID Tuning with GA (Minimize Overshoot)
 
 % 1. Define plant transfer function
 num = 7.84;
@@ -9,6 +9,7 @@ Gp = tf(num, den);
 nVars   = 3;                % [Kp, Ki, Kd]
 lb      = [0,   0,   0];    % lower bounds
 ub      = [100, 100, 10];   % upper bounds
+
 options = optimoptions('ga', ...
     'Display', 'iter', ...
     'PopulationSize', 800, ...     
@@ -88,7 +89,7 @@ function [c, ceq] = pidConstraints(x, Gp)
     sys = feedback(C*Gp,1);
     info = stepinfo(sys);
 
-    [y, ~] = step(sys, 0:0.01:5);
+    [y, ~] = step(sys, 0:0.01:10);
     ess = abs(1 - y(end));  % steady-state error
 
     c1 = ess - 0.05;             % ess ≤ 0.05
@@ -96,9 +97,9 @@ function [c, ceq] = pidConstraints(x, Gp)
     c3 = 1.2 - info.SettlingTime;% Ts ≥ 1.2
     c4 = 0.5 - info.RiseTime;    % Rt ≥ 0.5
     
-    %check
+    %check if any response returns incorrent data
     if isempty(info) || any(isnan([info.SettlingTime, info.RiseTime]))
-        c = [1; 1; 1; 1];  % force violation
+        c = [1; 1; 1; 1]; 
     else
         c = [c1; c2; c3; c4];
     end
