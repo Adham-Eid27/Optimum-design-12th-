@@ -95,7 +95,8 @@ function [c, ceq] = pidConstraints(x, Gp)
     c2 = info.SettlingTime - 1.5;% Ts ≤ 1.5
     c3 = 1.2 - info.SettlingTime;% Ts ≥ 1.2
     c4 = 0.5 - info.RiseTime;    % Rt ≥ 0.5
-
+    
+    %check
     if isempty(info) || any(isnan([info.SettlingTime, info.RiseTime]))
         c = [1; 1; 1; 1];  % force violation
     else
