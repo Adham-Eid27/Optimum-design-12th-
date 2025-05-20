@@ -38,7 +38,7 @@ Kp_opt = x_opt(1);
 Ki_opt = x_opt(2);
 Kd_opt = x_opt(3);
 
-fprintf('\nOptimized PID gains (minimize overshoot, Rt ≥ 0.5s):\n');
+fprintf('\nOptimized PID gains:\n');
 fprintf('  Kp = %.4f\n', Kp_opt);
 fprintf('  Ki = %.4f\n', Ki_opt);
 fprintf('  Kd = %.4f\n\n', Kd_opt);
@@ -76,7 +76,7 @@ fprintf('--- Closed-Loop (with PID) ---\n');
 fprintf(' Rise Time:     %.4f s\n', info_cl.RiseTime);
 fprintf(' Settling Time: %.4f s\n', info_cl.SettlingTime);
 fprintf(' Overshoot:     %.2f%%\n', info_cl.Overshoot);
-fprintf(' Steady-State Error (ess): %.2%%f\n', ess);
+fprintf(' Steady-State Error (ess): %.2f%%\n', ess);
 
 
 %% --- Objective function: minimize overshoot (penalize infeasible) ---
@@ -101,12 +101,12 @@ function [c, ceq] = pidConstraints(x, Gp)
     [y, ~] = step(sys, 0:0.01:10);
     ess = abs(1 - y(end));  % steady-state error
 
-    c1 = ess - 0.05;             % ess ≤ 0.05
-    c2 = info.SettlingTime - 1.5;% Ts ≤ 1.5
-    c3 = 1.2 - info.SettlingTime;% Ts ≥ 1.2
-    c4 = 0.5 - info.RiseTime;    % Rt ≥ 0.5
+    c1 = ess - 0.05;               % ess ≤ 0.05
+    c2 = info.SettlingTime - 1.5;  % Ts ≤ 1.5
+    c3 = 1.2 - info.SettlingTime;  % Ts ≥ 1.2
+    c4 = 0.5 - info.RiseTime;      % Rt ≥ 0.5
     
-    %check if any response returns incorrent data
+    %Check if any response returns incorrent data
     if isempty(info) || any(isnan([info.SettlingTime, info.RiseTime]))
         c = [1; 1; 1; 1]; 
     else
