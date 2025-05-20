@@ -10,6 +10,9 @@ nVars   = 3;                % [Kp, Ki, Kd]
 lb      = [0,   0,   0];    % lower bounds
 ub      = [100, 100, 10];   % upper bounds
 
+%Constraint variables
+
+
 options = optimoptions('ga', ...
     'Display', 'iter', ...
     'PopulationSize', 800, ...     
@@ -40,7 +43,7 @@ fprintf('  Ki = %.4f\n', Ki_opt);
 fprintf('  Kd = %.4f\n\n', Kd_opt);
 
 % 4. Prepare responses for plotting
-t      = 0:0.01:10;
+t         = 0:0.01:10;
 [y_ol, ~] = step(Gp, t);
 C_opt     = pid(Kp_opt, Ki_opt, Kd_opt);
 sys_cl    = feedback(C_opt*Gp,1);
@@ -76,8 +79,9 @@ function cost = pidObjective(x, Gp)
     C   = pid(x(1), x(2), x(3));
     sys = feedback(C*Gp,1);
     info = stepinfo(sys);
+    %Stability check
     if isempty(info) || isnan(info.Overshoot) || isinf(info.Overshoot)
-        cost = 1e6;  % penalty if system is unstable or info is bad
+        cost = 1e6;
     else
         cost = info.Overshoot;
     end
