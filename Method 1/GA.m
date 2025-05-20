@@ -20,7 +20,8 @@ options = optimoptions('ga', ...
     'EliteCount', 8, ...           
     'CrossoverFraction', 0.8, ...  
     'MutationFcn', {@mutationadaptfeasible}, ...  
-    'UseParallel', true);
+    'UseParallel', true, ...
+    'PlotFcn', {@gaplotbestf, @gaplotscorediversity});
 
 % 3. Run GA to tune PID
 tic;    % start timer
@@ -60,18 +61,22 @@ legend('Open-Loop','Closed-Loop (PID)','Location','Best');
 
 % 6. Print performance metrics
 info_ol = stepinfo(Gp);
-info_cl = stepinfo(sys_cl);                 
+info_cl = stepinfo(sys_cl);  
 
-fprintf('--- Scaled Open-Loop (no PID) ---\n');
+Kp_ol = dcgain(Gp);  % evaluates Gp(s) as s → 0
+ess_ol = 1 / (1 + Kp_ol);
+
+fprintf('--- Open-Loop (no PID) ---\n');
 fprintf(' Rise Time:     %.4f s\n', info_ol.RiseTime);
 fprintf(' Settling Time: %.4f s\n', info_ol.SettlingTime);
-fprintf(' Overshoot:     %.2f%%\n\n', info_ol.Overshoot);
+fprintf(' Overshoot:     %.2f%%\n', info_ol.Overshoot);
+fprintf(' Steady-State Error (ess): %.2f%%\n\n', ess_ol);
 
 fprintf('--- Closed-Loop (with PID) ---\n');
 fprintf(' Rise Time:     %.4f s\n', info_cl.RiseTime);
 fprintf(' Settling Time: %.4f s\n', info_cl.SettlingTime);
 fprintf(' Overshoot:     %.2f%%\n', info_cl.Overshoot);
-fprintf(' Steady-State Error (ess): %.4f\n', ess);
+fprintf(' Steady-State Error (ess): %.2%%f\n', ess);
 
 
 %% --- Objective function: minimize overshoot (penalize infeasible) ---
