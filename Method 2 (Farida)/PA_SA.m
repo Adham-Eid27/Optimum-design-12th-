@@ -9,14 +9,14 @@ motor_tf = tf(num, den);
  
 %% Common Parameters
 n_particles = 30;      % Number of particles
-max_iter = 50;         % Maximum iterations
+max_iter = 100;         % Maximum iterations
 Kp_range = [0, 50];    % Range for Kp
 Ki_range = [0, 50];    % Range for Ki
 Kd_range = [0, 10];    % Range for Kd
  
 %% 1. First run Standard PSO Optimization
 disp('Running Standard PSO Optimization...');
-w = 0.7;               % Inertia weight
+w = 0.9;               % Inertia weight
 c1 = 1.5;              % Cognitive coefficient
 c2 = 1.5;              % Social coefficient
  
@@ -71,7 +71,7 @@ for iter = 1:max_iter
             end
         end
     end
-    w = w * 0.98; % Inertia weight decay
+    w = w * 0.99; % Inertia weight decay
 end
  
 % Get final PSO results
@@ -79,7 +79,7 @@ end
  
 %% 2. Then run Hybrid PSO-SA Optimization
 disp('Running Hybrid PSO-SA Optimization...');
-w = 0.7;               % Reset inertia weight
+w = 0.9;               % Reset inertia weight
 c1 = 1.5;              % Cognitive coefficient
 c2 = 1.5;              % Social coefficient
  
@@ -139,7 +139,8 @@ for iter = 1:max_iter
     % Simulated Annealing Local Search
     for k = 1:sa_iter
         for i = 1:n_particles
-            neighbor = particles(i).best_position + T/T0*randn(1,3).*(Kp_range(2)-Kp_range(1))/10;
+            scale = [(Kp_range(2)-Kp_range(1)), (Ki_range(2)-Ki_range(1)), (Kd_range(2)-Kd_range(1))];
+neighbor = particles(i).best_position + T/T0 * randn(1,3) .* (scale / 20); 
             neighbor = max([Kp_range(1), Ki_range(1), Kd_range(1)], ...
                          min([Kp_range(2), Ki_range(2), Kd_range(2)], neighbor));
             
@@ -159,7 +160,7 @@ for iter = 1:max_iter
     end
     
     T = alpha * T; % Cool down temperature
-    w = w * 0.98;  % Inertia weight decay
+    w = w * 0.99;  % Inertia weight decay
 end
  
 % Get final PSO-SA results
@@ -182,12 +183,14 @@ fprintf('\n--- Scaled Open-Loop (no PID) ---\n');
 fprintf('Rise Time:    %.4f s\n', open_info.RiseTime);
 fprintf('Settling Time:%.4f s\n', open_info.SettlingTime);
 fprintf('Overshoot:    %.2f%%\n', open_info.Overshoot);
+fprintf('Steady-State Error: %.2f%%\n', ss_error_open);
 
 fprintf('\n--- Standard PSO Results ---\n');
 fprintf('PID Gains: Kp = %.4f, Ki = %.4f, Kd = %.4f\n', pso_global_best.position);
 fprintf('Rise Time:    %.4f s\n', pso_step_info.RiseTime);
 fprintf('Settling Time:%.4f s\n', pso_step_info.SettlingTime);
 fprintf('Overshoot:    %.2f%%\n', pso_step_info.Overshoot);
+fprintf('Steady-State Error: %.2f%%\n', pso_ss_error);
 
  
 fprintf('\n--- Hybrid PSO-SA Results ---\n');
@@ -195,6 +198,7 @@ fprintf('PID Gains: Kp = %.4f, Ki = %.4f, Kd = %.4f\n', pso_global_best.position
 fprintf('Rise Time:    %.4f s\n', pso_sa_step_info.RiseTime);
 fprintf('Settling Time:%.4f s\n', pso_sa_step_info.SettlingTime);
 fprintf('Overshoot:    %.2f%%\n', pso_sa_step_info.Overshoot);
+fprintf('Steady-State Error: %.2f%%\n', pso_sa_ss_error);
 
  
 %% Triple Comparison Plot
@@ -228,76 +232,52 @@ function [cost, step_info, sys_cl, steady_state_error] = evaluate_pid(pid_params
     Kp = pid_params(1);
     Ki = pid_params(2);
     Kd = pid_params(3);
+    t = 0:0.01:10;
     
-    % Create PID controller with filter on derivative term
-    N = 100;  % Filter coefficient for derivative term
-    pid_tf = pid(Kp, Ki, Kd, N);
-    
-    % Closed-loop system
+    pid_tf = pid(Kp, Ki, Kd);
     sys_cl = feedback(pid_tf * motor_tf, 1);
     
-    % Get step response information with extended simulation
     try
-        t = 0:0.01:10;  % Extended simulation time
-        [y, t] = step(sys_cl, t);
-        
-        % Calculate step info with relaxed settling threshold
-        step_info = stepinfo(y, t, 'SettlingTimeThreshold', 0.05);
-        
-        % Handle NaN settling time
-        if isnan(step_info.SettlingTime)
-            step_info.SettlingTime = 10;  % Max simulation time
-        end
-        
-        % Calculate steady-state error
+        [y, t] = step(sys_cl);
+        step_info = stepinfo(sys_cl);
         steady_state_value = y(end);
         steady_state_error = abs(1 - steady_state_value) * 100;
         
-        % Extract performance metrics
         overshoot = step_info.Overshoot;
-        if isempty(overshoot)
-            overshoot = 0;
-        end
+        if isempty(overshoot), overshoot = 0; end
         
         rise_time = step_info.RiseTime;
         settling_time = step_info.SettlingTime;
         
-        % Objective: Minimize overshoot
-        base_cost = overshoot;
-        
-        % Constraints with penalty functions
+        base_cost = 0.5 * overshoot + 0.8 * settling_time + 0.7 * rise_time;
         penalty = 0;
         
-        % Steady-state error < 5%
         if steady_state_error >= 5
             penalty = penalty + 1000 + (steady_state_error - 5)^2;
         end
         
-        % Settling time between 1 and 1.5 sec
         if settling_time < 1
             penalty = penalty + 1000 + (1 - settling_time)^2;
         elseif settling_time > 1.5
             penalty = penalty + 1000 + (settling_time - 1.5)^2;
         end
         
-        % Rise time at least 0.5 sec
         if rise_time < 0.5
-            penalty = penalty + 1000 + (0.5 - rise_time)^2;
+            penalty = penalty + 5000 + 1000 * (0.5 - rise_time)^2;
+
         end
         
-        % Additional penalty for non-settling systems
-        if step_info.SettlingTime >= 10
-            penalty = penalty + 2000;
-        end
-        
-        % Total cost
         cost = base_cost + penalty;
         
     catch
-        % If simulation fails (unstable system), assign high cost
         cost = 1e6;
-        step_info = struct('RiseTime', 0, 'SettlingTime', 100, 'Overshoot', 100);
+        step_info.Overshoot = 100;
+        step_info.RiseTime = 0;
+        step_info.SettlingTime = 100;
         steady_state_error = 100;
         sys_cl = tf(1,[1 1]);
     end
 end
+
+
+
